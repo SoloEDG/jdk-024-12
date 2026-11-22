@@ -1,15 +1,16 @@
 import { newDocument } from "../shared/initial";
 import { fishCatalog } from "../shared/catalog";
-import type { GameDocument } from "../shared/types";
+import type { GameDocument, SiteState } from "../shared/types";
 const key = "stillwater-jdk024-v1";
-function valid(value: unknown): value is GameDocument {
-  if (!value || typeof value !== "object") return false;
-  const d = value as GameDocument;
+const spots = ["reed", "brook", "deep"];
+const baits = ["worm", "corn", "fly"];
+const zones = ["near", "mid", "far"];
+const kinds = ["trash", "line", "sunken", "bag"];
+const statuses = ["anchored", "drifting", "salvaged", "lost"];
+const tools = ["hook", "shears", "net", "cleanser"];
+function validBase(d: GameDocument) {
   const fishIds = fishCatalog.map((f) => f.id);
-  const spots = ["reed", "brook", "deep"];
-  const baits = ["worm", "corn", "fly"];
   return (
-    d.version === 1 &&
     spots.includes(d.spot) &&
     baits.includes(d.bait) &&
     Number.isFinite(d.power) &&
@@ -55,13 +56,99 @@ function valid(value: unknown): value is GameDocument {
     )
   );
 }
+function validSite(s: SiteState) {
+  return (
+    !!s &&
+    typeof s === "object" &&
+    spots.includes(s.spot) &&
+    Array.isArray(s.anchors) &&
+    s.anchors.every(
+      (a) =>
+        a &&
+        typeof a.id === "string" &&
+        typeof a.name === "string" &&
+        zones.includes(a.zone) &&
+        Number.isFinite(a.capacity) &&
+        typeof a.intact === "boolean",
+    ) &&
+    Array.isArray(s.debris) &&
+    s.debris.every(
+      (d) =>
+        d &&
+        typeof d.id === "string" &&
+        kinds.includes(d.kind) &&
+        typeof d.name === "string" &&
+        typeof d.anchor === "string" &&
+        zones.includes(d.zone) &&
+        Number.isFinite(d.mass) &&
+        typeof d.sealed === "boolean" &&
+        typeof d.torn === "boolean" &&
+        Number.isFinite(d.pollution) &&
+        Number.isFinite(d.brace) &&
+        (d.braceAnchor === null || typeof d.braceAnchor === "string") &&
+        statuses.includes(d.status) &&
+        Number.isFinite(d.drift),
+    ) &&
+    !!s.water &&
+    !!s.sediment &&
+    zones.every(
+      (z) =>
+        Number.isFinite(s.water[z as keyof typeof s.water]) &&
+        Number.isFinite(s.sediment[z as keyof typeof s.sediment]),
+    ) &&
+    [s.released, s.removed, s.carried, s.drifted, s.leaked, s.grass].every(
+      Number.isFinite,
+    ) &&
+    Number.isInteger(s.attempts)
+  );
+}
+function validV2(d: GameDocument) {
+  return (
+    d.version === 2 &&
+    validBase(d) &&
+    Number.isInteger(d.stats.salvaged) &&
+    d.stats.salvaged >= 0 &&
+    Number.isInteger(d.stats.torn) &&
+    d.stats.torn >= 0 &&
+    !!d.sites &&
+    Object.entries(d.sites).every(
+      ([spot, s]) => spots.includes(spot) && validSite(s),
+    ) &&
+    !!d.tools &&
+    tools.every(
+      (t) =>
+        Number.isInteger(d.tools[t as keyof typeof d.tools]) &&
+        d.tools[t as keyof typeof d.tools] >= 0,
+    ) &&
+    typeof d.kitIssued === "boolean" &&
+    Array.isArray(d.cleanupClaimed) &&
+    d.cleanupClaimed.every((c) => typeof c === "string")
+  );
+}
+function migrate(parsed: unknown): GameDocument | null {
+  if (!parsed || typeof parsed !== "object") return null;
+  const version = (parsed as { version?: unknown }).version;
+  const d = parsed as GameDocument;
+  if (version === 2) return validV2(d) ? d : null;
+  if (version !== 1 || !validBase(d)) return null;
+  return {
+    ...d,
+    version: 2,
+    stats: { ...d.stats, salvaged: 0, torn: 0 },
+    sites: {},
+    tools: { hook: 0, shears: 0, net: 0, cleanser: 0 },
+    kitIssued: false,
+    cleanupClaimed: [],
+  };
+}
 export function loadGame(): { doc: GameDocument; notice: string; recovery?: true } {
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return { doc: newDocument(), notice: "" };
     const parsed: unknown = JSON.parse(raw);
-    return valid(parsed)
-      ? { doc: parsed, notice: "" }
+    const doc = migrate(parsed);
+    return doc
+      ? { doc, notice: "" }
       : {
           doc: newDocument(),
           notice: "本地手记格式或版本无法读取，已保留原手记并开启临时游玩。",

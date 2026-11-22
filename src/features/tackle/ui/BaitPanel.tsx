@@ -3,6 +3,7 @@ import type { GameDocument } from "../../../shared/types";
 import type { Command } from "../../../shared/commands";
 import { baits } from "../model/baits";
 import { attraction } from "../lib/affinity";
+import { spotClarity } from "../../cleanup";
 export function BaitPanel({
   doc,
   busy,
@@ -12,7 +13,7 @@ export function BaitPanel({
   busy: boolean;
   send: (c: Command) => void;
 }) {
-  const choices = attraction(doc.spot, doc.bait);
+  const choices = attraction(doc.spot, doc.bait, spotClarity(doc, doc.spot));
   return (
     <section className="bait-panel">
       <div className="section-title">

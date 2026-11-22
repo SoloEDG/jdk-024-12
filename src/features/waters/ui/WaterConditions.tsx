@@ -1,7 +1,13 @@
-import { Thermometer, Wind, Waves } from "lucide-react";
+import { Thermometer, Wind, Waves, Droplets } from "lucide-react";
 import type { SpotId } from "../../../shared/types";
 import { water } from "../model/waters";
-export function WaterConditions({ spot }: { spot: SpotId }) {
+export function WaterConditions({
+  spot,
+  clarity,
+}: {
+  spot: SpotId;
+  clarity: number;
+}) {
   const w = water(spot);
   return (
     <div className="conditions">
@@ -16,6 +22,10 @@ export function WaterConditions({ spot }: { spot: SpotId }) {
       <span>
         <Waves size={14} />
         {w.current} · {w.depth}
+      </span>
+      <span>
+        <Droplets size={14} />
+        透明度 {Math.round(clarity * 100)}%
       </span>
     </div>
   );

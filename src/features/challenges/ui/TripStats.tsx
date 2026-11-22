@@ -14,6 +14,10 @@ export function TripStats({ doc }: { doc: GameDocument }) {
         <strong>{String(doc.stats.released).padStart(2, "0")}</strong>
         <span>已放流</span>
       </div>
+      <div>
+        <strong>{String(doc.stats.salvaged).padStart(2, "0")}</strong>
+        <span>清障打捞</span>
+      </div>
     </div>
   );
 }

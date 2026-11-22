@@ -9,20 +9,23 @@ import {
   ArrowUpRight,
   X,
   Compass,
+  Recycle,
 } from "lucide-react";
-import { isBusy } from "../shared/initial";
+import { cleanupBusy, isBusy } from "../shared/initial";
 import { WaterPanel, WaterConditions, water } from "../features/waters";
 import { BaitPanel, RigPanel } from "../features/tackle";
 import { LakeScene, FishingPanel } from "../features/fishing";
 import { CollectionPanel } from "../features/collection";
 import { ChallengePanel, TripStats } from "../features/challenges";
+import { CleanupStage, LedgerPanel, RestorePanel, spotClarity } from "../features/cleanup";
 import { useGame } from "./useGame";
 export function App() {
   const { state, send, saved } = useGame();
-  const { doc, session } = state;
+  const { doc, session, cleanup } = state;
   const [help, setHelp] = useState(false);
-  const busy = isBusy(session);
+  const busy = isBusy(session) || cleanupBusy(cleanup);
   const place = water(doc.spot);
+  const clarity = spotClarity(doc, doc.spot);
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -38,9 +41,26 @@ export function App() {
           </span>
         </a>
         <nav aria-label="主导航">
-          <a className="nav-active" href="#fishing">
+          <a
+            className={cleanup ? "" : "nav-active"}
+            href="#fishing"
+            onClick={() => {
+              if (cleanup && !cleanupBusy(cleanup))
+                send({ type: "cleanup-close" });
+            }}
+          >
             <Compass size={16} />
             去钓鱼
+          </a>
+          <a
+            className={cleanup ? "nav-active" : ""}
+            href="#cleanup"
+            onClick={() => {
+              if (!cleanup) send({ type: "cleanup-open" });
+            }}
+          >
+            <Recycle size={16} />
+            水域清障
           </a>
           <a href="#collection">
             <BookOpen size={16} />
@@ -92,35 +112,41 @@ export function App() {
             </div>
           </aside>
           <div className="center-column">
-            <section className="fishing-stage" id="fishing">
-              <div className="lake-top">
-                <div>
-                  <span className="eyebrow">{place.subtitle}</span>
-                  <h2>
-                    {place.name}
-                    <span>自由垂钓</span>
-                  </h2>
+            {cleanup ? (
+              <CleanupStage doc={doc} cs={cleanup} send={send} />
+            ) : (
+              <>
+                <section className="fishing-stage" id="fishing">
+                  <div className="lake-top">
+                    <div>
+                      <span className="eyebrow">{place.subtitle}</span>
+                      <h2>
+                        {place.name}
+                        <span>自由垂钓</span>
+                      </h2>
+                    </div>
+                    <span className="location-tag">
+                      <span />
+                      开放水域
+                    </span>
+                  </div>
+                  <div className="scene-wrap">
+                    <LakeScene session={session} spot={doc.spot} />
+                    <div className="scene-caption">
+                      <span>清晨 / 07:30</span>
+                      <span>{place.description}</span>
+                    </div>
+                    <div className="scene-label">STILLNESS IS A KIND OF JOY.</div>
+                  </div>
+                  <WaterConditions spot={doc.spot} clarity={clarity} />
+                  <FishingPanel doc={doc} session={session} send={send} />
+                </section>
+                <div className="equipment-row">
+                  <BaitPanel doc={doc} busy={busy} send={send} />
+                  <RigPanel doc={doc} busy={busy} send={send} />
                 </div>
-                <span className="location-tag">
-                  <span />
-                  开放水域
-                </span>
-              </div>
-              <div className="scene-wrap">
-                <LakeScene session={session} spot={doc.spot} />
-                <div className="scene-caption">
-                  <span>清晨 / 07:30</span>
-                  <span>{place.description}</span>
-                </div>
-                <div className="scene-label">STILLNESS IS A KIND OF JOY.</div>
-              </div>
-              <WaterConditions spot={doc.spot} />
-              <FishingPanel doc={doc} session={session} send={send} />
-            </section>
-            <div className="equipment-row">
-              <BaitPanel doc={doc} busy={busy} send={send} />
-              <RigPanel doc={doc} busy={busy} send={send} />
-            </div>
+              </>
+            )}
             <div className="journal-strip">
               <span>✳</span>
               <p>
@@ -131,6 +157,12 @@ export function App() {
             </div>
           </div>
           <aside className="right-column">
+            {cleanup && (
+              <>
+                <LedgerPanel doc={doc} cs={cleanup} send={send} />
+                <RestorePanel doc={doc} cs={cleanup} send={send} />
+              </>
+            )}
             <div id="collection">
               <CollectionPanel doc={doc} send={send} />
             </div>
@@ -185,6 +217,12 @@ export function App() {
               </li>
               <li>
                 收获会保存到背包和图鉴。捕获两尾解锁溪流，五尾解锁深水。放流保留图鉴记录。
+              </li>
+              <li>
+                水域清障中，废物共用支点：先标记目标、预览整组后果，再确认抛竿收线。强拉快却容易扯破密封袋、压垮支点；逐段拆解更稳妥。实际后果不会超出预览承诺的范围，收线越平稳越接近下限。
+              </li>
+              <li>
+                污染沿可通水区域扩散并附着，净化只作用本区。清障可以随时退出，进度保留；放弃打捞不回滚破损，消耗的工具也不会返还。
               </li>
             </ol>
             <p>
